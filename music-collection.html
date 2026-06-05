@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音藏 · 音乐收藏</title>
+<style>
+  :root {
+    --bg: #f8f8f6;
+    --surface: #ffffff;
+    --border: #e8e6e1;
+    --text: #1a1a1a;
+    --text-secondary: #7a7a7a;
+    --text-tertiary: #b0b0b0;
+    --accent: #c8a97e;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+    --transition: 0.25s cubic-bezier(0.33, 1, 0.68, 1);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--text-tertiary); border-radius:3px; }
+  .app { max-width:1280px; margin:0 auto; padding:0 32px; }
+  .header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:24px 0 20px; border-bottom:1px solid var(--border); margin-bottom:32px;
+  }
+  .logo { display:flex; align-items:center; gap:10px; font-size:20px; font-weight:600; letter-spacing:-0.02em; }
+  .logo-icon {
+    width:32px; height:32px; background:var(--accent); border-radius:8px;
+    display:flex; align-items:center; justify-content:center; color:white; font-size:16px;
+  }
+  .header-actions { display:flex; align-items:center; gap:16px; }
+  .header-count { font-size:14px; color:var(--text-secondary); }
+  .controls { display:flex; align-items:center; gap:12px; margin-bottom:28px; flex-wrap:wrap; }
+  .search-wrap { flex:1; min-width:200px; position:relative; }
+  .search-wrap svg {
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--text-tertiary); pointer-events:none;
+  }
+  .search-input {
+    width:100%; padding:10px 14px 10px 40px; border:1px solid var(--border);
+    border-radius:10px; font-size:14px; background:var(--surface); color:var(--text);
+    font-family:var(--font); outline:none; transition:border var(--transition), box-shadow var(--transition);
+  }
+  .search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(200,169,126,0.12); }
+  .search-input::placeholder { color:var(--text-tertiary); }
+  .filter-group { display:flex; gap:6px; }
+  .filter-btn {
+    padding:8px 16px; border:1px solid var(--border); border-radius:10px;
+    background:var(--surface); color:var(--text-secondary); font-size:13px;
+    font-family:var(--font); cursor:pointer; transition:all var(--transition); white-space:nowrap;
+  }
+  .filter-btn:hover { border-color:var(--accent); color:var(--text); }
+  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:white; }
+  .grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
+    gap:20px; padding-bottom:64px;
+  }
+  .album {
+    background:var(--surface); border-radius:var(--radius); overflow:hidden;
+    cursor:pointer; transition:transform var(--transition), box-shadow var(--transition);
+    box-shadow:var(--shadow); border:1px solid var(--border);
+  }
+  .album:hover { transform:translateY(-4px); box-shadow:0 8px 24px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.04); }
+  .album-cover {
+    width:100%; aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+    font-size:36px; position:relative; overflow:hidden;
+  }
+  .album-cover .overlay {
+    position:absolute; inset:0; background:rgba(0,0,0,0.35);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity var(--transition);
+  }
+  .album:hover .overlay { opacity:1; }
+  .play-btn {
+    width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,0.9);
+    border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--text); transition:transform var(--transition);
+  }
+  .play-btn:hover { transform:scale(1.08); }
+  .album-info { padding:14px 14px 16px; }
+  .album-title { font-size:14px; font-weight:600; margin-bottom:4px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .album-artist { font-size:13px; color:var(--text-secondary); margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .album-meta { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-tertiary); }
+  .album-meta .dot { width:3px; height:3px; border-radius:50%; background:var(--text-tertiary); }
+  .panel-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.25);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    z-index:100; opacity:0; pointer-events:none; transition:opacity 0.35s ease;
+  }
+  .panel-overlay.open { opacity:1; pointer-events:all; }
+  .panel {
+    position:fixed; top:0; right:0; bottom:0; width:420px; max-width:90vw;
+    background:var(--surface); z-index:101; padding:28px 28px 24px; overflow-y:auto;
+    transform:translateX(100%); transition:transform 0.4s cubic-bezier(0.22,1,0.36,1);
+    box-shadow:-4px 0 24px rgba(0,0,0,0.06);
+  }
+  .panel.open { transform:translateX(0); }
+  .panel-close {
+    position:absolute; top:20px; right:20px; width:36px; height:36px; border-radius:50%;
+    border:none; background:var(--bg); cursor:pointer; display:flex; align-items:center;
+    justify-content:center; color:var(--text-secondary); transition:background var(--transition);
+  }
+  .panel-close:hover { background:var(--border); }
+  .panel-cover { width:100%; aspect-ratio:1; border-radius:var(--radius); margin-bottom:24px; display:flex; align-items:center; justify-content:center; font-size:56px; overflow:hidden; }
+  .panel-title { font-size:22px; font-weight:600; letter-spacing:-0.01em; margin-bottom:4px; }
+  .panel-artist { font-size:15px; color:var(--text-secondary); margin-bottom:20px; }
+  .panel-details {
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;
+    padding:16px; background:var(--bg); border-radius:10px;
+  }
+  .panel-detail-item label { display:block; font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px; }
+  .panel-detail-item span { font-size:14px; font-weight:500; }
+  .panel-tracks h3 { font-size:13px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px; }
+  .track-list { list-style:none; }
+  .track-item {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 0; border-bottom:1px solid var(--border); font-size:14px;
+    cursor:pointer; transition:color var(--transition);
+  }
+  .track-item:last-child { border-bottom:none; }
+  .track-item:hover { color:var(--accent); }
+  .track-num { width:28px; color:var(--text-tertiary); font-size:12px; font-variant-numeric:tabular-nums; }
+  .track-name { flex:1; }
+  .track-duration { color:var(--text-tertiary); font-size:12px; font-variant-numeric:tabular-nums; }
+  .empty { grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-secondary); }
+  .empty svg { margin-bottom:16px; opacity:0.3; }
+  .empty p { font-size:15px; }
+  .player-bar {
+    position:fixed; bottom:0; left:0; right:0; height:64px;
+    background:rgba(255,255,255,0.92); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border-top:1px solid var(--border); display:flex; align-items:center; padding:0 32px;
+    gap:16px; z-index:50; transform:translateY(100%);
+    transition:transform 0.4s cubic-bezier(0.22,1,0.36,1);
+  }
+  .player-bar.visible { transform:translateY(0); }
+  .player-bar .mini-cover { width:40px; height:40px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden; }
+  .player-bar .track-info { min-width:0; flex:1; }
+  .player-bar .track-info .name { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .player-bar .track-info .artist { font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .player-controls { display:flex; align-items:center; gap:12px; }
+  .player-controls button { background:none; border:none; cursor:pointer; color:var(--text); display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; transition:background var(--transition); }
+  .player-controls button:hover { background:var(--border); }
+  .player-controls .play-pause { width:40px; height:40px; background:var(--accent); color:white; }
+  .player-controls .play-pause:hover { background:#b8986a; }
+  .player-bar .volume-wrap { display:flex; align-items:center; gap:6px; }
+  .player-bar .volume-wrap svg { color:var(--text-tertiary); flex-shrink:0; }
+  .volume-slider {
+    width:72px; height:4px; -webkit-appearance:none; appearance:none;
+    background:var(--border); border-radius:2px; outline:none; cursor:pointer;
+  }
+  .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--surface); cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
+  .visualizer {
+    display:flex; align-items:flex-end; gap:2px; height:24px;
+  }
+  .visualizer .bar {
+    width:3px; border-radius:2px 2px 0 0;
+    background:var(--accent); opacity:0.4;
+    transition:height 0.08s ease;
+  }
+  @media (max-width:768px) {
+    .app { padding:0 16px; }
+    .header { padding:18px 0 16px; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+    .grid { grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:14px; }
+    .panel { width:100%; max-width:100vw; padding:20px; }
+    .controls { flex-direction:column; align-items:stretch; }
+    .filter-group { flex-wrap:wrap; }
+    .player-bar { padding:0 12px; gap:10px; }
+    .volume-slider { width:48px; }
+  }
+  @media (max-width:420px) {
+    .grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+    .album-info { padding:10px; }
+    .album-title { font-size:13px; }
+    .album-artist { font-size:12px; }
+    .volume-slider { width:36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">&#9835;</div>
+      音藏
+    </div>
+    <div class="header-actions">
+      <span class="header-count" id="count">24 张专辑</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L14 14"/></svg>
+      <input class="search-input" type="text" id="search" placeholder="搜索专辑或艺术家…" autocomplete="off">
+    </div>
+    <div class="filter-group" id="filters">
+      <button class="filter-btn active" data-filter="all">全部</button>
+      <button class="filter-btn" data-filter="流行">流行</button>
+      <button class="filter-btn" data-filter="摇滚">摇滚</button>
+      <button class="filter-btn" data-filter="电子">电子</button>
+      <button class="filter-btn" data-filter="爵士">爵士</button>
+      <button class="filter-btn" data-filter="古典">古典</button>
+      <button class="filter-btn" data-filter="民谣">民谣</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="panel-overlay" id="panelOverlay"></div>
+<div class="panel" id="panel">
+  <button class="panel-close" id="panelClose">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg>
+  </button>
+  <div class="panel-cover" id="panelCover"></div>
+  <div class="panel-title" id="panelTitle"></div>
+  <div class="panel-artist" id="panelArtist"></div>
+  <div class="panel-details" id="panelDetails"></div>
+  <div class="panel-tracks">
+    <h3>曲目</h3>
+    <ul class="track-list" id="panelTracks"></ul>
+  </div>
+</div>
+
+<div class="player-bar" id="playerBar">
+  <div class="mini-cover" id="miniCover"></div>
+  <div class="track-info">
+    <div class="name" id="miniTrackName">曲目名称</div>
+    <div class="artist" id="miniTrackArtist">艺术家</div>
+  </div>
+  <div class="visualizer" id="visualizer"></div>
+  <div class="player-controls">
+    <button id="prevBtn" title="上一首">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h2v10H3V3zm3 5l7-5v10l-7-5z"/></svg>
+    </button>
+    <button class="play-pause" id="playBtn" title="播放/暂停">
+      <svg id="playIcon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><path d="M5 3l10 6-10 6V3z"/></svg>
+    </button>
+    <button id="nextBtn" title="下一首">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11 3h2v10h-2V3zm-3 5l-7-5v10l-7-5z"/></svg>
+    </button>
+  </div>
+  <div class="volume-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="60">
+  </div>
+</div>
+
+<script>
+// ============================
+// ALBUM DATA
+// ============================
+var ALBUMS = [
+  { id:1, title:"Random Access Memories", artist:"Daft Punk", year:2013, genre:"电子", style:"electronic", tracks:[
+    { name:"Give Life Back to Music", dur:"4:34" }, { name:"The Game of Love", dur:"5:22" },
+    { name:"Giorgio by Moroder", dur:"9:04" }, { name:"Within", dur:"3:48" },
+    { name:"Instant Crush", dur:"5:37" }, { name:"Lose Yourself to Dance", dur:"5:53" },
+    { name:"Touch", dur:"8:19" }, { name:"Get Lucky", dur:"6:07" },
+    { name:"Beyond", dur:"4:50" }, { name:"Motherboard", dur:"5:41" },
+    { name:"Fragments of Time", dur:"4:39" }, { name:"Doin' It Right", dur:"4:11" },
+    { name:"Contact", dur:"6:23" }
+  ]},
+  { id:2, title:"Abbey Road", artist:"The Beatles", year:1969, genre:"摇滚", style:"rock", tracks:[
+    { name:"Come Together", dur:"4:20" }, { name:"Something", dur:"3:03" },
+    { name:"Maxwell's Silver Hammer", dur:"3:27" }, { name:"Oh! Darling", dur:"3:26" },
+    { name:"Octopus's Garden", dur:"2:51" }, { name:"I Want You", dur:"7:47" },
+    { name:"Here Comes the Sun", dur:"3:05" }, { name:"Because", dur:"2:45" },
+    { name:"You Never Give Me Your Money", dur:"4:02" }, { name:"Sun King", dur:"2:26" },
+    { name:"Mean Mr. Mustard", dur:"1:06" }, { name:"Polythene Pam", dur:"1:12" },
+    { name:"She Came In Through the Bathroom Window", dur:"1:57" },
+    { name:"Golden Slumbers", dur:"1:31" }, { name:"Carry That Weight", dur:"1:36" },
+    { name:"The End", dur:"2:05" }, { name:"Her Majesty", dur:"0:23" }
+  ]},
+  { id:3, title:"Kind of Blue", artist:"Miles Davis", year:1959, genre:"爵士", style:"jazz", tracks:[
+    { name:"So What", dur:"9:22" }, { name:"Freddie Freeloader", dur:"9:46" },
+    { name:"Blue in Green", dur:"5:37" }, { name:"All Blues", dur:"11:33" },
+    { name:"Flamenco Sketches", dur:"9:26" }
+  ]},
+  { id:4, title:"OK Computer", artist:"Radiohead", year:1997, genre:"摇滚", style:"rock", tracks:[
+    { name:"Airbag", dur:"4:44" }, { name:"Paranoid Android", dur:"6:23" },
+    { name:"Subterranean Homesick Alien", dur:"4:27" }, { name:"Exit Music", dur:"4:24" },
+    { name:"Let Down", dur:"4:59" }, { name:"Karma Police", dur:"4:24" },
+    { name:"Fitter Happier", dur:"1:57" }, { name:"Electioneering", dur:"3:50" },
+    { name:"Climbing Up the Walls", dur:"4:45" }, { name:"No Surprises", dur:"3:48" },
+    { name:"Lucky", dur:"4:20" }, { name:"The Tourist", dur:"5:24" }
+  ]},
+  { id:5, title:"The Dark Side of the Moon", artist:"Pink Floyd", year:1973, genre:"摇滚", style:"rock", tracks:[
+    { name:"Speak to Me", dur:"1:30" }, { name:"Breathe", dur:"2:43" },
+    { name:"On the Run", dur:"3:50" }, { name:"Time", dur:"6:53" },
+    { name:"The Great Gig in the Sky", dur:"4:43" }, { name:"Money", dur:"6:22" },
+    { name:"Us and Them", dur:"7:49" }, { name:"Any Colour You Like", dur:"3:26" },
+    { name:"Brain Damage", dur:"3:46" }, { name:"Eclipse", dur:"2:03" }
+  ]},
+  { id:6, title:"Thriller", artist:"Michael Jackson", year:1982, genre:"流行", style:"pop", tracks:[
+    { name:"Wanna Be Startin' Somethin'", dur:"6:02" }, { name:"Baby Be Mine", dur:"4:20" },
+    { name:"The Girl Is Mine", dur:"3:42" }, { name:"Thriller", dur:"5:57" },
+    { name:"Beat It", dur:"4:18" }, { name:"Billie Jean", dur:"4:54" },
+    { name:"Human Nature", dur:"4:06" }, { name:"P.Y.T.", dur:"3:59" },
+    { name:"The Lady in My Life", dur:"5:00" }
+  ]},
+  { id:7, title:"Rumours", artist:"Fleetwood Mac", year:1977, genre:"摇滚", style:"rock", tracks:[
+    { name:"Second Hand News", dur:"2:56" }, { name:"Dreams", dur:"4:17" },
+    { name:"Never Going Back Again", dur:"2:14" }, { name:"Don't Stop", dur:"3:11" },
+    { name:"Go Your Own Way", dur:"3:43" }, { name:"Songbird", dur:"3:20" },
+    { name:"The Chain", dur:"4:30" }, { name:"You Make Loving Fun", dur:"3:36" },
+    { name:"I Don't Want to Know", dur:"3:16" }, { name:"Oh Daddy", dur:"3:56" },
+    { name:"Gold Dust Woman", dur:"4:53" }
+  ]},
+  { id:8, title:"Nevermind", artist:"Nirvana", year:1991, genre:"摇滚", style:"rock", tracks:[
+    { name:"Smells Like Teen Spirit", dur:"5:01" }, { name:"In Bloom", dur:"4:14" },
+    { name:"Come as You Are", dur:"3:39" }, { name:"Breed", dur:"3:03" },
+    { name:"Lithium", dur:"4:17" }, { name:"Polly", dur:"2:57" },
+    { name:"Territorial Pissings", dur:"2:22" }, { name:"Drain You", dur:"3:43" },
+    { name:"Lounge Act", dur:"2:36" }, { name:"Stay Away", dur:"3:32" },
+    { name:"On a Plain", dur:"3:16" }, { name:"Something in the Way", dur:"3:52" }
+  ]},
+  { id:9, title:"Discovery", artist:"Daft Punk", year:2001, genre:"电子", style:"electronic", tracks:[
+    { name:"One More Time", dur:"5:20" }, { name:"Aerodynamic", dur:"3:27" },
+    { name:"Digital Love", dur:"4:58" }, { name:"Harder Better Faster Stronger", dur:"5:45" },
+    { name:"Crescendolls", dur:"3:32" }, { name:"Nightvision", dur:"1:44" },
+    { name:"Superheroes", dur:"3:57" }, { name:"High Life", dur:"3:21" },
+    { name:"Something About Us", dur:"3:51" }, { name:"Voyager", dur:"3:47" },
+    { name:"Veridis Quo", dur:"5:45" }, { name:"Short Circuit", dur:"3:26" },
+    { name:"Face to Face", dur:"4:00" }, { name:"Too Long", dur:"10:00" }
+  ]},
+  { id:10, title:"Back to Black", artist:"Amy Winehouse", year:2006, genre:"流行", style:"pop", tracks:[
+    { name:"Rehab", dur:"3:34" }, { name:"You Know I'm No Good", dur:"4:17" },
+    { name:"Me & Mr Jones", dur:"2:33" }, { name:"Just Friends", dur:"3:13" },
+    { name:"Back to Black", dur:"4:01" }, { name:"Love Is a Losing Game", dur:"2:35" },
+    { name:"Tears Dry on Their Own", dur:"3:06" }, { name:"Wake Up Alone", dur:"3:42" },
+    { name:"He Can Only Hold Her", dur:"2:46" }
+  ]},
+  { id:11, title:"In Rainbows", artist:"Radiohead", year:2007, genre:"摇滚", style:"rock", tracks:[
+    { name:"15 Step", dur:"3:57" }, { name:"Bodysnatchers", dur:"4:02" },
+    { name:"Nude", dur:"4:15" }, { name:"Weird Fishes", dur:"5:18" },
+    { name:"All I Need", dur:"3:48" }, { name:"Faust Arp", dur:"2:09" },
+    { name:"Reckoner", dur:"4:50" }, { name:"House of Cards", dur:"5:28" },
+    { name:"Jigsaw Falling into Place", dur:"4:09" }, { name:"Videotape", dur:"4:42" }
+  ]},
+  { id:12, title:"Blue Train", artist:"John Coltrane", year:1957, genre:"爵士", style:"jazz", tracks:[
+    { name:"Blue Train", dur:"10:43" }, { name:"Moment's Notice", dur:"9:10" },
+    { name:"Locomotion", dur:"7:14" }, { name:"I'm Old Fashioned", dur:"7:58" },
+    { name:"Lazy Bird", dur:"7:00" }
+  ]},
+  { id:13, title:"Born to Die", artist:"Lana Del Rey", year:2012, genre:"流行", style:"pop", tracks:[
+    { name:"Born to Die", dur:"4:46" }, { name:"Off to the Races", dur:"5:01" },
+    { name:"Blue Jeans", dur:"3:30" }, { name:"Video Games", dur:"4:42" },
+    { name:"Diet Mountain Dew", dur:"3:43" }, { name:"National Anthem", dur:"3:51" },
+    { name:"Dark Paradise", dur:"4:03" }, { name:"Radio", dur:"3:34" },
+    { name:"Carmen", dur:"4:09" }, { name:"Million Dollar Man", dur:"4:19" },
+    { name:"Summertime Sadness", dur:"4:25" }, { name:"This Is What Makes Us Girls", dur:"3:58" }
+  ]},
+  { id:14, title:"Kalk Samen Kuri no Hana", artist:"Sheena Ringo", year:1999, genre:"流行", style:"pop", tracks:[
+    { name:"Tadashii Machi", dur:"3:52" }, { name:"Kabukichou no Joou", dur:"2:52" },
+    { name:"Marunouchi Sadistic", dur:"3:54" }, { name:"Koufukuron", dur:"4:53" },
+    { name:"Gipusu", dur:"4:19" }, { name:"Yami ni Furu Ame", dur:"4:18" },
+    { name:"Suberidai", dur:"4:22" }, { name:"Noudouteki na Synthesizer", dur:"3:42" }
+  ]},
+  { id:15, title:"AM", artist:"Arctic Monkeys", year:2013, genre:"摇滚", style:"rock", tracks:[
+    { name:"Do I Wanna Know?", dur:"4:32" }, { name:"R U Mine?", dur:"3:20" },
+    { name:"One for the Road", dur:"3:26" }, { name:"Arabella", dur:"3:27" },
+    { name:"I Want It All", dur:"3:05" }, { name:"No.1 Party Anthem", dur:"4:03" },
+    { name:"Mad Sounds", dur:"3:35" }, { name:"Fireside", dur:"3:01" },
+    { name:"Why'd You Only Call Me When You're High?", dur:"2:42" },
+    { name:"Snap Out of It", dur:"3:13" }, { name:"Knee Socks", dur:"4:18" },
+    { name:"I Wanna Be Yours", dur:"3:04" }
+  ]},
+  { id:16, title:"Currents", artist:"Tame Impala", year:2015, genre:"电子", style:"electronic", tracks:[
+    { name:"Let It Happen", dur:"7:47" }, { name:"Nangs", dur:"1:47" },
+    { name:"The Moment", dur:"4:15" }, { name:"Yes I'm Changing", dur:"4:30" },
+    { name:"Eventually", dur:"5:19" }, { name:"Gossip", dur:"0:55" },
+    { name:"The Less I Know the Better", dur:"3:38" }, { name:"Past Life", dur:"3:47" },
+    { name:"Disciples", dur:"1:48" }, { name:"'Cause I'm a Man", dur:"4:01" },
+    { name:"Reality in Motion", dur:"4:12" }, { name:"Love/Paranoia", dur:"3:10" },
+    { name:"New Person, Same Old Mistakes", dur:"6:01" }
+  ]},
+  { id:17, title:"Channel Orange", artist:"Frank Ocean", year:2012, genre:"流行", style:"pop", tracks:[
+    { name:"Start", dur:"0:46" }, { name:"Thinkin Bout You", dur:"3:21" },
+    { name:"Fertilizer", dur:"0:39" }, { name:"Sierra Leone", dur:"2:29" },
+    { name:"Sweet Life", dur:"4:23" }, { name:"Not Just Money", dur:"0:59" },
+    { name:"Super Rich Kids", dur:"5:04" }, { name:"Pilot Jones", dur:"3:04" },
+    { name:"Crack Rock", dur:"3:44" }, { name:"Pyramids", dur:"9:53" },
+    { name:"Lost", dur:"3:54" }, { name:"White", dur:"1:16" },
+    { name:"Monks", dur:"3:20" }, { name:"Bad Religion", dur:"2:55" },
+    { name:"Pink Matter", dur:"4:29" }, { name:"Forrest Gump", dur:"3:14" },
+    { name:"End", dur:"3:25" }
+  ]},
+  { id:18, title:"Utopia", artist:"Bjork", year:2017, genre:"电子", style:"electronic", tracks:[
+    { name:"Arisen My Senses", dur:"4:59" }, { name:"Blissing Me", dur:"5:05" },
+    { name:"The Gate", dur:"6:33" }, { name:"Utopia", dur:"4:42" },
+    { name:"Body Memory", dur:"9:57" }, { name:"Features Creatures", dur:"4:24" },
+    { name:"Courtship", dur:"4:39" }, { name:"Losss", dur:"5:03" },
+    { name:"Sue Me", dur:"4:57" }, { name:"Tabula Rasa", dur:"4:42" },
+    { name:"Claimstaker", dur:"3:18" }, { name:"Paradisia", dur:"1:44" },
+    { name:"Saint", dur:"4:41" }, { name:"Future Forever", dur:"4:47" }
+  ]},
+  { id:19, title:"Madvillainy", artist:"Madvillain", year:2004, genre:"流行", style:"pop", tracks:[
+    { name:"The Illest Villains", dur:"1:54" }, { name:"Accordion", dur:"1:58" },
+    { name:"Meat Grinder", dur:"2:11" }, { name:"Bistro", dur:"1:07" },
+    { name:"Raid", dur:"2:30" }, { name:"America's Most Blunted", dur:"3:54" },
+    { name:"Sickfit", dur:"0:52" }, { name:"Rainbows", dur:"2:51" },
+    { name:"Curls", dur:"1:35" }, { name:"Do Not Fire!", dur:"0:52" },
+    { name:"Money Folder", dur:"3:02" }, { name:"Shadows of Tomorrow", dur:"2:35" },
+    { name:"Figaro", dur:"2:25" }, { name:"Hardcore Hustle", dur:"1:21" },
+    { name:"Strange Ways", dur:"1:51" }, { name:"Fancy Clown", dur:"1:55" },
+    { name:"Eye", dur:"1:57" }, { name:"Supervillain Theme", dur:"0:52" },
+    { name:"All Caps", dur:"2:10" }, { name:"Great Day", dur:"2:17" },
+    { name:"Rhinestone Cowboy", dur:"3:59" }
+  ]},
+  { id:20, title:"Hounds of Love", artist:"Kate Bush", year:1985, genre:"流行", style:"pop", tracks:[
+    { name:"Running Up That Hill", dur:"4:58" }, { name:"Hounds of Love", dur:"3:02" },
+    { name:"The Big Sky", dur:"4:35" }, { name:"Mother Stands for Comfort", dur:"3:07" },
+    { name:"Cloudbusting", dur:"5:10" }, { name:"And Dream of Sheep", dur:"2:45" },
+    { name:"Under Ice", dur:"2:21" }, { name:"Waking the Witch", dur:"4:18" },
+    { name:"Watching You Without Me", dur:"4:06" }, { name:"Jig of Life", dur:"4:04" },
+    { name:"Hello Earth", dur:"6:13" }, { name:"The Morning Fog", dur:"2:34" }
+  ]},
+  { id:21, title:"To Pimp a Butterfly", artist:"Kendrick Lamar", year:2015, genre:"流行", style:"pop", tracks:[
+    { name:"Wesley's Theory", dur:"4:47" }, { name:"For Free?", dur:"2:10" },
+    { name:"King Kunta", dur:"3:54" }, { name:"Institutionalized", dur:"4:31" },
+    { name:"These Walls", dur:"5:26" }, { name:"u", dur:"4:28" },
+    { name:"Alright", dur:"3:39" }, { name:"For Sale?", dur:"4:51" },
+    { name:"Momma", dur:"4:43" }, { name:"Hood Politics", dur:"4:52" },
+    { name:"How Much a Dollar Cost", dur:"4:21" }, { name:"Complexion", dur:"4:23" },
+    { name:"The Blacker the Berry", dur:"5:28" }, { name:"You Ain't Gotta Lie", dur:"4:01" },
+    { name:"i", dur:"5:36" }, { name:"Mortal Man", dur:"12:07" }
+  ]},
+  { id:22, title:"Homogenic", artist:"Bjork", year:1997, genre:"电子", style:"electronic", tracks:[
+    { name:"Hunter", dur:"4:15" }, { name:"Joga", dur:"5:05" },
+    { name:"Unravel", dur:"3:18" }, { name:"Bachelorette", dur:"5:12" },
+    { name:"All Neon Like", dur:"5:53" }, { name:"5 Years", dur:"4:29" },
+    { name:"Immature", dur:"3:06" }, { name:"Alarm Call", dur:"4:19" },
+    { name:"Pluto", dur:"3:20" }, { name:"All Is Full of Love", dur:"4:32" }
+  ]},
+  { id:23, title:"Aja", artist:"Steely Dan", year:1977, genre:"爵士", style:"jazz", tracks:[
+    { name:"Black Cow", dur:"5:10" }, { name:"Aja", dur:"7:57" },
+    { name:"Deacon Blues", dur:"7:37" }, { name:"Peg", dur:"3:58" },
+    { name:"Home at Last", dur:"5:34" }, { name:"I Got the News", dur:"5:06" },
+    { name:"Josie", dur:"4:33" }
+  ]},
+  { id:24, title:"Favourite Worst Nightmare", artist:"Arctic Monkeys", year:2007, genre:"摇滚", style:"rock", tracks:[
+    { name:"Brianstorm", dur:"2:50" }, { name:"Teddy Picker", dur:"2:43" },
+    { name:"D Is for Dangerous", dur:"2:16" }, { name:"Balaclava", dur:"2:49" },
+    { name:"Fluorescent Adolescent", dur:"3:03" }, { name:"Only Ones Who Know", dur:"3:02" },
+    { name:"Do Me a Favour", dur:"3:27" }, { name:"This House Is a Circus", dur:"3:09" },
+    { name:"If You Were There Beware", dur:"4:34" }, { name:"The Bad Thing", dur:"2:23" },
+    { name:"Old Yellow Bricks", dur:"3:11" }, { name:"505", dur:"4:13" }
+  ]}
+];
+
+// ============================
+// UI STATE
+// ============================
+var PALETTES = [
+  ["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],
+  ["#43e97b","#38f9d7"],["#fa709a","#fee140"],["#a18cd1","#fbc2eb"],
+  ["#fccb90","#d57eeb"],["#e0c3fc","#8ec5fc"],["#f5576c","#ff6f00"],
+  ["#30cfd0","#330867"],["#a8edea","#fed6e3"],["#d4fc79","#96e6a1"],
+  ["#84fab0","#8fd3f4"],["#a1c4fd","#c2e9fb"],["#667db6","#0082c8"],
+  ["#f2709c","#ff9472"],["#b224ef","#7579ff"],["#c94b4b","#4b134f"],
+  ["#0f0c29","#302b63"],["#02aab0","#00cdac"],["#da22ff","#9733ee"],
+  ["#eb3349","#f45c43"],["#dd5e89","#f7bb97"]
+];
+
+var filtered = [];
+var activeFilter = "all";
+var currentAlbum = null;
+
+// Audio state
+var audioCtx = null;
+var synthNodes = [];
+var isPlaying = false;
+var playQueue = [];
+var currentTrackIdx = -1;
+var vizInterval = null;
+
+// Copy albums into filtered
+for (var i = 0; i < ALBUMS.length; i++) filtered.push(ALBUMS[i]);
+
+// ============================
+// AUDIO ENGINE (Web Audio API)
+// ============================
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+var NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+function noteToFreq(note) {
+  var octave = parseInt(note.slice(-1));
+  var name = note.slice(0, -1);
+  var idx = NOTE_NAMES.indexOf(name);
+  var semitones = (octave - 4) * 12 + (idx - 9);
+  return 440 * Math.pow(2, semitones / 12);
+}
+
+// Genre-specific scales and patterns
+var GENRE_PATTERNS = {
+  pop: {
+    scale: ["C4","D4","E4","G4","A4","C5","D5","E5"],
+    bpm: 118,
+    bassNote: "C3",
+    chordNotes: ["C4","E4","G4"]
+  },
+  rock: {
+    scale: ["E4","G4","A4","B4","D5","E5","G5","A5"],
+    bpm: 130,
+    bassNote: "E3",
+    chordNotes: ["E4","G4","B4"]
+  },
+  electronic: {
+    scale: ["C4","D#4","F4","G4","A#4","C5","D#5","F5"],
+    bpm: 128,
+    bassNote: "C3",
+    chordNotes: ["C4","D#4","G4"]
+  },
+  jazz: {
+    scale: ["C4","D4","E4","F#4","G4","A4","B4","C5","D5","E5"],
+    bpm: 90,
+    bassNote: "C3",
+    chordNotes: ["C4","E4","G4","B4"]
+  }
+};
+
+function getPattern(style) {
+  return GENRE_PATTERNS[style] || GENRE_PATTERNS.pop;
+}
+
+function startSynth(style) {
+  var ctx = getAudioCtx();
+  stopSynth();
+
+  var masterGain = ctx.createGain();
+  masterGain.gain.value = document.getElementById("volumeSlider").value / 100 * 0.3;
+  masterGain.connect(ctx.destination);
+
+  var pattern = getPattern(style);
+
+  // --- Bass ---
+  var bassOsc = ctx.createOscillator();
+  var bassGain = ctx.createGain();
+  bassOsc.type = "triangle";
+  bassOsc.frequency.value = noteToFreq(pattern.bassNote);
+  bassGain.gain.value = 0.12;
+  bassOsc.connect(bassGain);
+  bassGain.connect(masterGain);
+  bassOsc.start();
+
+  // Bass beat pulse
+  var beatInterval = 60 / pattern.bpm;
+
+  // --- Chord pad ---
+  var chordOscs = [];
+  var chordGain = ctx.createGain();
+  chordGain.gain.value = 0.06;
+  for (var i = 0; i < pattern.chordNotes.length; i++) {
+    var o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = noteToFreq(pattern.chordNotes[i]);
+    o.connect(chordGain);
+    o.start();
+    chordOscs.push(o);
+  }
+  chordGain.connect(masterGain);
+
+  // --- Arpeggiator ---
+  var arpOsc = ctx.createOscillator();
+  var arpGain = ctx.createGain();
+  arpOsc.type = style === "electronic" ? "sawtooth" : "triangle";
+  arpGain.gain.value = 0.07;
+  arpOsc.connect(arpGain);
+  arpGain.connect(masterGain);
+  arpOsc.start();
+
+  var arpIdx = 0;
+  var beatTime = 60 / pattern.bpm;
+  var arpTimer = setInterval(function() {
+    var freq = noteToFreq(pattern.scale[arpIdx % pattern.scale.length]);
+    arpOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.02);
+    arpIdx++;
+
+    // Bass pulse
+    var bfreq = noteToFreq(pattern.bassNote);
+    // every 4th beat go up an octave
+    if (arpIdx % 4 === 0) {
+      bfreq = noteToFreq(pattern.bassNote.slice(0, -1) + (parseInt(pattern.bassNote.slice(-1)) + 1));
+    }
+    bassOsc.frequency.setTargetAtTime(bfreq, ctx.currentTime, 0.03);
+  }, beatTime * 500);
+
+  synthNodes = {
+    master: masterGain,
+    bass: { osc: bassOsc, gain: bassGain },
+    chordOscs: chordOscs,
+    chordGain: chordGain,
+    arp: { osc: arpOsc, gain: arpGain },
+    timer: arpTimer,
+    beatInterval: beatInterval
+  };
+}
+
+function stopSynth() {
+  if (synthNodes.timer) {
+    clearInterval(synthNodes.timer);
+  }
+  try {
+    if (synthNodes.bass && synthNodes.bass.osc) synthNodes.bass.osc.stop();
+    if (synthNodes.chordOscs) {
+      for (var i = 0; i < synthNodes.chordOscs.length; i++) {
+        try { synthNodes.chordOscs[i].stop(); } catch(e) {}
+      }
+    }
+    if (synthNodes.arp && synthNodes.arp.osc) synthNodes.arp.osc.stop();
+  } catch(e) {}
+  synthNodes = [];
+}
+
+function setVolume(val) {
+  if (synthNodes.master) {
+    synthNodes.master.gain.value = val / 100 * 0.3;
+  }
+}
+
+// ============================
+// VISUALIZER
+// ============================
+function startVisualizer() {
+  stopVisualizer();
+  var bars = document.getElementById("visualizer");
+  bars.innerHTML = "";
+  var count = 20;
+  var barEls = [];
+  for (var i = 0; i < count; i++) {
+    var bar = document.createElement("div");
+    bar.className = "bar";
+    bars.appendChild(bar);
+    barEls.push(bar);
+  }
+  vizInterval = setInterval(function() {
+    for (var i = 0; i < barEls.length; i++) {
+      var h = Math.random() * 22 + 2;
+      barEls[i].style.height = h + "px";
+      var opacity = 0.2 + Math.random() * 0.5;
+      barEls[i].style.opacity = opacity;
+    }
+  }, 100);
+}
+
+function stopVisualizer() {
+  if (vizInterval) {
+    clearInterval(vizInterval);
+    vizInterval = null;
+  }
+  var bars = document.getElementById("visualizer");
+  bars.innerHTML = "";
+}
+
+// ============================
+// UI FUNCTIONS
+// ============================
+function getPalette(str) {
+  var h = 0;
+  for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+  return PALETTES[Math.abs(h) % PALETTES.length];
+}
+
+function escHtml(s) {
+  var d = document.createElement("div");
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
+
+function findAlbum(id) {
+  for (var i = 0; i < ALBUMS.length; i++) {
+    if (ALBUMS[i].id === id) return ALBUMS[i];
+  }
+  return null;
+}
+
+function renderGrid(items) {
+  var grid = document.getElementById("grid");
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg><p>没有找到匹配的专辑</p></div>';
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < items.length; i++) {
+    var a = items[i];
+    var p = getPalette(a.title + a.artist);
+    var gradient = "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
+    html += '<div class="album" data-id="' + a.id + '">';
+    html += '<div class="album-cover" style="background:' + gradient + '">';
+    html += '<div class="art" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:rgba(255,255,255,0.15);font-size:64px;font-weight:300;">&#9835;</div>';
+    html += '<div class="overlay"><button class="play-btn" data-play-id="' + a.id + '">';
+    html += '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M6 3l12 7-12 7V3z"/></svg>';
+    html += '</button></div></div>';
+    html += '<div class="album-info">';
+    html += '<div class="album-title">' + escHtml(a.title) + '</div>';
+    html += '<div class="album-artist">' + escHtml(a.artist) + '</div>';
+    html += '<div class="album-meta"><span>' + a.year + '</span><span class="dot"></span><span>' + a.genre + '</span></div>';
+    html += '</div></div>';
+  }
+  grid.innerHTML = html;
+  document.getElementById("count").textContent = items.length + " 张专辑";
+
+  var cards = document.querySelectorAll(".album");
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].addEventListener("click", function(e) {
+      if (e.target.closest(".play-btn")) return;
+      var id = parseInt(this.dataset.id);
+      openPanel(findAlbum(id));
+    });
+  }
+
+  var btns = document.querySelectorAll(".play-btn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function(e) {
+      e.stopPropagation();
+      var id = parseInt(this.dataset.playId);
+      playAlbum(findAlbum(id), 0);
+    });
+  }
+}
+
+function filterAndSearch() {
+  var result = [];
+  for (var i = 0; i < ALBUMS.length; i++) result.push(ALBUMS[i]);
+  if (activeFilter !== "all") {
+    var temp = [];
+    for (var i = 0; i < result.length; i++) {
+      if (result[i].genre === activeFilter) temp.push(result[i]);
+    }
+    result = temp;
+  }
+  var q = document.getElementById("search").value.trim().toLowerCase();
+  if (q) {
+    var temp = [];
+    for (var i = 0; i < result.length; i++) {
+      if (result[i].title.toLowerCase().indexOf(q) !== -1 || result[i].artist.toLowerCase().indexOf(q) !== -1) {
+        temp.push(result[i]);
+      }
+    }
+    result = temp;
+  }
+  filtered = result;
+  renderGrid(result);
+}
+
+// Filters
+var filterBtns = document.querySelectorAll(".filter-btn");
+for (var i = 0; i < filterBtns.length; i++) {
+  filterBtns[i].addEventListener("click", function() {
+    for (var j = 0; j < filterBtns.length; j++) filterBtns[j].classList.remove("active");
+    this.classList.add("active");
+    activeFilter = this.dataset.filter;
+    filterAndSearch();
+  });
+}
+
+document.getElementById("search").addEventListener("input", filterAndSearch);
+
+// Panel
+function openPanel(album) {
+  currentAlbum = album;
+  var p = getPalette(album.title + album.artist);
+  var gradient = "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
+  document.getElementById("panelCover").innerHTML = '<div style="width:100%;height:100%;background:' + gradient + ';display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.15);font-size:72px;font-weight:300;">&#9835;</div>';
+  document.getElementById("panelTitle").textContent = album.title;
+  document.getElementById("panelArtist").textContent = album.artist;
+
+  var totalSec = 0;
+  for (var i = 0; i < album.tracks.length; i++) {
+    var parts = album.tracks[i].dur.split(":");
+    totalSec += parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  }
+  document.getElementById("panelDetails").innerHTML =
+    '<div class="panel-detail-item"><label>发行年份</label><span>' + album.year + '</span></div>' +
+    '<div class="panel-detail-item"><label>流派</label><span>' + album.genre + '</span></div>' +
+    '<div class="panel-detail-item"><label>曲目</label><span>' + album.tracks.length + ' 首</span></div>' +
+    '<div class="panel-detail-item"><label>总时长</label><span>' + totalSec + 's</span></div>';
+
+  var tracksHtml = "";
+  for (var i = 0; i < album.tracks.length; i++) {
+    var t = album.tracks[i];
+    var num = (i + 1).toString().padStart(2, "0");
+    tracksHtml += '<li class="track-item" data-album-id="' + album.id + '" data-idx="' + i + '">';
+    tracksHtml += '<span class="track-num">' + num + '</span>';
+    tracksHtml += '<span class="track-name">' + escHtml(t.name) + '</span>';
+    tracksHtml += '<span class="track-duration">' + t.dur + '</span></li>';
+  }
+  document.getElementById("panelTracks").innerHTML = tracksHtml;
+
+  var trackEls = document.querySelectorAll(".track-item");
+  for (var i = 0; i < trackEls.length; i++) {
+    trackEls[i].addEventListener("click", function() {
+      var idx = parseInt(this.dataset.idx);
+      var aid = parseInt(this.dataset.albumId);
+      playAlbum(findAlbum(aid), idx);
+    });
+  }
+
+  document.getElementById("panelOverlay").classList.add("open");
+  document.getElementById("panel").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closePanel() {
+  document.getElementById("panelOverlay").classList.remove("open");
+  document.getElementById("panel").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+document.getElementById("panelClose").addEventListener("click", closePanel);
+document.getElementById("panelOverlay").addEventListener("click", closePanel);
+
+// ============================
+// PLAYER
+// ============================
+function playAlbum(album, startIdx) {
+  playQueue = [];
+  for (var i = 0; i < album.tracks.length; i++) {
+    playQueue.push({ name: album.tracks[i].name, dur: album.tracks[i].dur, album: album, idx: i });
+  }
+  currentTrackIdx = startIdx;
+  isPlaying = true;
+
+  // Start audio engine
+  var ctx = getAudioCtx();
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+
+  startSynth(album.style);
+  startVisualizer();
+  updatePlayerUI();
+  document.getElementById("playerBar").classList.add("visible");
+}
+
+function stopPlayback() {
+  isPlaying = false;
+  stopSynth();
+  stopVisualizer();
+  updatePlayerUI();
+}
+
+function updatePlayerUI() {
+  if (playQueue.length === 0 || currentTrackIdx < 0) {
+    document.getElementById("miniTrackName").textContent = "—";
+    document.getElementById("miniTrackArtist").textContent = "";
+    document.getElementById("playIcon").outerHTML = '<svg id="playIcon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><path d="M5 3l10 6-10 6V3z"/></svg>';
+    return;
+  }
+  var track = playQueue[currentTrackIdx];
+  var album = track.album;
+  var p = getPalette(album.title + album.artist);
+  var gradient = "linear-gradient(135deg," + p[0] + "," + p[1] + ")";
+  document.getElementById("miniCover").innerHTML = '<div style="width:100%;height:100%;background:' + gradient + ';display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);font-size:16px;">&#9835;</div>';
+  document.getElementById("miniTrackName").textContent = track.name;
+  document.getElementById("miniTrackArtist").textContent = album.artist + " · " + album.title;
+
+  var iconHtml = isPlaying
+    ? '<svg id="playIcon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><rect x="5" y="3" width="3" height="12" rx="1"/><rect x="10" y="3" width="3" height="12" rx="1"/></svg>'
+    : '<svg id="playIcon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><path d="M5 3l10 6-10 6V3z"/></svg>';
+  document.getElementById("playIcon").outerHTML = iconHtml;
+}
+
+document.getElementById("playBtn").addEventListener("click", function() {
+  if (playQueue.length === 0) return;
+  var ctx = getAudioCtx();
+  if (ctx.state === "suspended") ctx.resume();
+
+  if (isPlaying) {
+    // Pause
+    isPlaying = false;
+    stopSynth();
+    stopVisualizer();
+  } else {
+    // Resume
+    isPlaying = true;
+    var track = playQueue[currentTrackIdx];
+    startSynth(track.album.style);
+    startVisualizer();
+  }
+  updatePlayerUI();
+});
+
+document.getElementById("prevBtn").addEventListener("click", function() {
+  if (playQueue.length === 0) return;
+  currentTrackIdx = (currentTrackIdx - 1 + playQueue.length) % playQueue.length;
+  var track = playQueue[currentTrackIdx];
+  stopSynth();
+  stopVisualizer();
+  isPlaying = true;
+  startSynth(track.album.style);
+  startVisualizer();
+  updatePlayerUI();
+});
+
+document.getElementById("nextBtn").addEventListener("click", function() {
+  if (playQueue.length === 0) return;
+  currentTrackIdx = (currentTrackIdx + 1) % playQueue.length;
+  var track = playQueue[currentTrackIdx];
+  stopSynth();
+  stopVisualizer();
+  isPlaying = true;
+  startSynth(track.album.style);
+  startVisualizer();
+  updatePlayerUI();
+});
+
+// Volume
+document.getElementById("volumeSlider").addEventListener("input", function() {
+  setVolume(parseInt(this.value));
+});
+
+// Keyboard
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") closePanel();
+  if (e.key === " " && e.target === document.body) {
+    e.preventDefault();
+    document.getElementById("playBtn").click();
+  }
+});
+
+// Init
+filterAndSearch();
+</script>
+</body>
+</html>
